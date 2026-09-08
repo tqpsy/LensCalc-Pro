@@ -1,5 +1,5 @@
 const CACHE_NAME = 'ottica-v1';
-const urlsToCache = ['index.html', 'manifest.json'];
+const urlsToCache = ['index.html', 'manifest.json', 'icon.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
