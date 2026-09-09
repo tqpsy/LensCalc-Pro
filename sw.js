@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ottica-v2';
+const CACHE_NAME = 'ottica-v3';
 const urlsToCache = ['index.html', 'manifest.json', 'icon.png'];
 
 self.addEventListener('install', event => {
