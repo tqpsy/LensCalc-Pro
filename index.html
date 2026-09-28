@@ -136,6 +136,18 @@
     text-underline-offset:3px;
   }
 
+  .lens-list{margin-top:14px; border-top:1px solid var(--line-bright); padding-top:12px;}
+  .lens-list .label{margin-bottom:8px;}
+  .lens{display:flex; justify-content:space-between; gap:10px; padding:6px 0; font-size:13px; border-bottom:1px dashed var(--line-bright);}
+  .lens:last-child{border-bottom:none;}
+  .lens .tr{color:var(--accent); white-space:nowrap;}
+  .lens-missing{margin-top:14px; border:1px solid var(--warn); border-radius:2px; padding:12px; color:var(--warn); font-size:13px; line-height:1.5;}
+  .lens-missing .hint{color:var(--text-dim); font-size:12px; margin-top:6px;}
+  .catalog td, .catalog th{padding:6px 4px; font-size:12.5px; text-align:left; border-bottom:1px solid var(--line);}
+  .catalog{width:100%; border-collapse:collapse;}
+  .catalog th{color:var(--text-dim); font-weight:normal;}
+  .catalog td.tr{color:var(--accent); white-space:nowrap;}
+
   footer{margin-top:30px; color:var(--text-dim); font-size:11.5px; line-height:1.6;}
 </style>
 </head>
@@ -169,6 +181,7 @@
       <div class="label" id="resultLabel">Risultato</div>
       <div class="value" id="resultValue">—</div>
       <div class="note" id="resultNote"></div>
+      <div id="lensMatch"></div>
     </div>
   </div>
 
@@ -189,6 +202,14 @@
     </div>
   </div>
 
+  <div class="panel">
+    <h2>03 — ottiche disponibili a magazzino</h2>
+    <table class="catalog">
+      <thead><tr><th>Ottica</th><th>Proiettore</th><th>Throw Ratio</th></tr></thead>
+      <tbody id="catalogBody"></tbody>
+    </table>
+  </div>
+
   <footer>
     Ottica espressa come Rapporto di Proiezione (Throw Ratio), distanza e base in metri. Se l'ottica è uno zoom, calcola i due estremi (min/max).
   </footer>
@@ -196,6 +217,22 @@
 </div>
 
 <script>
+// Ottiche disponibili a magazzino (throw ratio min:max)
+const LENSES = [
+  { name: 'Epson ELP S04',  family: '10K', min: 1.57, max: 2.56 },
+  { name: 'Epson ELP U02',  family: '10K', min: 0.66, max: 0.80 },
+  { name: 'Epson ELPL M06', family: '10K', min: 2.51, max: 3.85 },
+  { name: 'Epson ELPL W04', family: '10K', min: 1.19, max: 1.62 },
+  { name: 'Epson ELPLM15',  family: '15K', min: 1.57, max: 2.56, note: 'F.C.' },
+  { name: 'Epson ELPLW05',  family: '15K', min: 0.77, max: 1.07, note: 'F.C.' },
+  { name: 'Epson ELPLS07',  family: '5K',  min: 1.26, max: 2.30 },
+  { name: 'Epson ELPLU01',  family: '5K',  min: 0.64, max: 0.77 },
+];
+const FAMILIES = [...new Set(LENSES.map(l => l.family))];
+
+function fmtTR(n){ return n.toFixed(2).replace('.', ','); }
+function lensLabel(l){ return `${l.name}${l.note ? ` (${l.note})` : ''}`; }
+
 const state = { mode: 'distanza' };
 
 const tabs = document.querySelectorAll('.tab');
@@ -242,6 +279,13 @@ function fieldsFor(mode){
         <label>Base <b>(m)</b> — larghezza immagine</label>
         <input type="number" id="in2" step="0.001" placeholder="es. 2.40">
       </div>
+    </div>
+    <div class="field">
+      <label>Proiettore <b>(famiglia ottiche)</b></label>
+      <select id="family">
+        <option value="">Tutti</option>
+        ${FAMILIES.map(f => `<option value="${f}">Epson ${f}</option>`).join('')}
+      </select>
     </div>`;
 }
 
@@ -250,6 +294,28 @@ function render(){
   resultBox.style.display = 'none';
   document.getElementById('in1').addEventListener('input', compute);
   document.getElementById('in2').addEventListener('input', compute);
+  const family = document.getElementById('family');
+  if(family) family.addEventListener('change', compute);
+}
+
+function renderLensMatch(tr){
+  const family = document.getElementById('family').value;
+  const pool = LENSES.filter(l => !family || l.family === family);
+  const matches = pool.filter(l => tr >= l.min && tr <= l.max);
+  if(matches.length){
+    return `<div class="lens-list">
+      <div class="label">Ottiche compatibili a magazzino</div>
+      ${matches.map(l => `<div class="lens"><span>${lensLabel(l)} · ${l.family}</span><span class="tr">${fmtTR(l.min)}:${fmtTR(l.max)}</span></div>`).join('')}
+    </div>`;
+  }
+  const nearest = pool
+    .map(l => ({ l, d: tr < l.min ? l.min - tr : tr - l.max }))
+    .sort((a, b) => a.d - b.d)[0];
+  return `<div class="lens-missing">
+    ⚠ Nessuna ottica a catalogo copre il valore ${fmtTR(tr)}:1${family ? ` per proiettori Epson ${family}` : ''}.
+    La lente non è presente a magazzino: è necessario reperire un'ottica adeguata.
+    ${nearest ? `<div class="hint">Più vicina disponibile: ${lensLabel(nearest.l)} · ${nearest.l.family} (${fmtTR(nearest.l.min)}:${fmtTR(nearest.l.max)})</div>` : ''}
+  </div>`;
 }
 
 function compute(){
@@ -279,6 +345,7 @@ function compute(){
   resultLabel.textContent = label;
   resultValue.innerHTML = `${val.toFixed(3)} <span>${unit}</span>`;
   resultNote.textContent = note;
+  document.getElementById('lensMatch').innerHTML = state.mode === 'ottica' ? renderLensMatch(val) : '';
   resultBox.style.display = 'block';
 }
 
@@ -292,6 +359,10 @@ tabs.forEach(t => {
 });
 
 render();
+
+document.getElementById('catalogBody').innerHTML = LENSES.map(l =>
+  `<tr><td>${lensLabel(l)}</td><td>${l.family}</td><td class="tr">${fmtTR(l.min)}:${fmtTR(l.max)}</td></tr>`
+).join('');
 
 const baseHeightInput = document.getElementById('baseHeightInput');
 const heightResultBox = document.getElementById('heightResultBox');
