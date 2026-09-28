@@ -78,7 +78,7 @@
   }
 
   .tabs{display:flex;gap:1px;margin-bottom:18px;border:1px solid var(--line);border-radius:2px;overflow:hidden;}
-  .tab{
+  .tab, .ptab{
     flex:1;
     text-align:center;
     padding:10px 6px;
@@ -89,8 +89,11 @@
     border-right:1px solid var(--line);
     transition:background 0.15s, color 0.15s;
   }
-  .tab:last-child{border-right:none;}
-  .tab.active{background:var(--accent-soft);color:#ffffff;}
+  .tab:last-child, .ptab:last-child{border-right:none;}
+  .tab.active, .ptab.active{background:var(--accent-soft);color:#ffffff;}
+  .ptab small{display:block; font-size:10.5px; color:var(--text-dim); margin-top:2px;}
+  .ptab.active small{color:var(--accent);}
+  .catalog tr.hidden{display:none;}
 
   .field{margin-bottom:14px;}
   .field label{
@@ -182,6 +185,16 @@
   </div>
 
   <div class="panel">
+    <h2>00 — proiettore in uso</h2>
+    <div class="tabs" id="projTabs" style="margin-bottom:0;">
+      <div class="ptab active" data-family="">Tutti<small>qualsiasi</small></div>
+      <div class="ptab" data-family="5K">5.000<small>lumen</small></div>
+      <div class="ptab" data-family="10K">10.000<small>lumen</small></div>
+      <div class="ptab" data-family="15K">15.000<small>lumen</small></div>
+    </div>
+  </div>
+
+  <div class="panel">
     <h2>01 — cosa vuoi calcolare</h2>
     <div class="tabs">
       <div class="tab active" data-mode="distanza">Distanza</div>
@@ -242,12 +255,12 @@ const LENSES = [
   { name: 'Epson ELPLS07',  family: '5K',  min: 1.26, max: 2.30 },
   { name: 'Epson ELPLU01',  family: '5K',  min: 0.64, max: 0.77 },
 ];
-const FAMILIES = [...new Set(LENSES.map(l => l.family))];
+const FAMILY_NAMES = { '5K': '5.000 lumen', '10K': '10.000 lumen', '15K': '15.000 lumen' };
 
 function fmtTR(n){ return n.toFixed(2).replace('.', ','); }
 function lensLabel(l){ return `${l.name}${l.note ? ` (${l.note})` : ''}`; }
 
-const state = { mode: 'distanza' };
+const state = { mode: 'distanza', family: '' };
 
 const tabs = document.querySelectorAll('.tab');
 const inputsEl = document.getElementById('inputs');
@@ -293,13 +306,6 @@ function fieldsFor(mode){
         <label>Base <b>(m)</b> — larghezza immagine</label>
         <input type="number" id="in2" step="0.001" placeholder="es. 2.40">
       </div>
-    </div>
-    <div class="field">
-      <label>Proiettore <b>(famiglia ottiche)</b></label>
-      <select id="family">
-        <option value="">Tutti</option>
-        ${FAMILIES.map(f => `<option value="${f}">Epson ${f}</option>`).join('')}
-      </select>
     </div>`;
 }
 
@@ -309,8 +315,6 @@ function render(){
   highlightCatalog(null);
   document.getElementById('in1').addEventListener('input', compute);
   document.getElementById('in2').addEventListener('input', compute);
-  const family = document.getElementById('family');
-  if(family) family.addEventListener('change', compute);
 }
 
 // Posizione del valore nell'escursione dello zoom (0 = min, 1 = max)
@@ -328,6 +332,7 @@ function highlightCatalog(matches){
   table.classList.toggle('active', !!matches);
   table.querySelectorAll('tbody tr').forEach((row, i) => {
     const l = LENSES[i];
+    row.classList.toggle('hidden', !!state.family && l.family !== state.family);
     const idx = matches ? matches.indexOf(l) : -1;
     row.classList.toggle('best', idx === 0);
     row.classList.toggle('match', idx > 0);
@@ -336,7 +341,7 @@ function highlightCatalog(matches){
 }
 
 function renderLensMatch(tr){
-  const family = document.getElementById('family').value;
+  const family = state.family;
   const pool = LENSES.filter(l => !family || l.family === family);
   const matches = findMatches(tr, family);
   highlightCatalog(matches);
@@ -356,7 +361,7 @@ function renderLensMatch(tr){
     .map(l => ({ l, d: tr < l.min ? l.min - tr : tr - l.max }))
     .sort((a, b) => a.d - b.d)[0];
   return `<div class="lens-missing">
-    ⚠ Nessuna ottica a catalogo copre il valore ${fmtTR(tr)}:1${family ? ` per proiettori Epson ${family}` : ''}.
+    ⚠ Nessuna ottica a catalogo copre il valore ${fmtTR(tr)}:1${family ? ` per proiettori da ${FAMILY_NAMES[family]}` : ''}.
     La lente non è presente a magazzino: è necessario reperire un'ottica adeguata.
     ${nearest ? `<div class="hint">Più vicina disponibile: ${lensLabel(nearest.l)} · ${nearest.l.family} (${fmtTR(nearest.l.min)}:${fmtTR(nearest.l.max)})</div>` : ''}
   </div>`;
@@ -413,6 +418,15 @@ document.getElementById('catalogBody').innerHTML = LENSES.map(l =>
 ).join('');
 
 render();
+
+document.querySelectorAll('.ptab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.ptab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    state.family = t.dataset.family;
+    compute();
+  });
+});
 
 const baseHeightInput = document.getElementById('baseHeightInput');
 const heightResultBox = document.getElementById('heightResultBox');
