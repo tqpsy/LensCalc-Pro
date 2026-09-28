@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ottica-v9';
+const CACHE_NAME = 'ottica-v10';
 const urlsToCache = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'icon.png', 'vendor/jspdf.umd.min.js'];
 
 self.addEventListener('install', event => {
