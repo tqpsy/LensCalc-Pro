@@ -225,7 +225,7 @@
   <div class="panel">
     <h2>03 — ottiche disponibili a magazzino</h2>
     <table class="catalog">
-      <thead><tr><th>Ottica</th><th>Proiettore</th><th>Throw Ratio</th></tr></thead>
+      <thead><tr><th>Articolo</th></tr></thead>
       <tbody id="catalogBody"></tbody>
     </table>
   </div>
@@ -239,21 +239,20 @@
 </div>
 
 <script>
-// Ottiche disponibili a magazzino (throw ratio min:max)
+// Ottiche disponibili a magazzino: nomi articolo come da gestionale, throw ratio min:max
 const LENSES = [
-  { name: 'Epson ELP S04',  family: '10K', min: 1.57, max: 2.56 },
-  { name: 'Epson ELP U02',  family: '10K', min: 0.66, max: 0.80 },
-  { name: 'Epson ELPL M06', family: '10K', min: 2.51, max: 3.85 },
-  { name: 'Epson ELPL W04', family: '10K', min: 1.19, max: 1.62 },
-  { name: 'Epson ELPLM15',  family: '15K', min: 1.57, max: 2.56, note: 'F.C.' },
-  { name: 'Epson ELPLW05',  family: '15K', min: 0.77, max: 1.07, note: 'F.C.' },
-  { name: 'Epson ELPLS07',  family: '5K',  min: 1.26, max: 2.30 },
-  { name: 'Epson ELPLU01',  family: '5K',  min: 0.64, max: 0.77 },
+  { name: 'Ottica Epson 10K ELP S04 - R.1,57:2,56',              family: '10K', min: 1.57, max: 2.56 },
+  { name: 'Ottica Epson 10K ELP U02 - R.0,66:0,80',              family: '10K', min: 0.66, max: 0.80 },
+  { name: 'Ottica Epson 10K ELPL M06 - R.2,51:3,85',             family: '10K', min: 2.51, max: 3.85 },
+  { name: 'Ottica Epson 10K ELPL W04 - R.1,19-1,62',             family: '10K', min: 1.19, max: 1.62 },
+  { name: 'Ottica Epson 15K - ELPLM15 - R. 1.57 : 2.56 (F.C.)', family: '15K', min: 1.57, max: 2.56 },
+  { name: 'Ottica Epson 15K - ELPLW05 - R. 0.77 : 1.07 (F.C.)', family: '15K', min: 0.77, max: 1.07 },
+  { name: 'Ottica Epson 5K ELPLS07 - R.1,26:2,30',               family: '5K',  min: 1.26, max: 2.30 },
+  { name: 'Ottica Epson 5K ELPLU01 - 0,64:0,77',                 family: '5K',  min: 0.64, max: 0.77 },
 ];
 const FAMILY_NAMES = { '5K': '5.000 lumen', '10K': '10.000 lumen', '15K': '15.000 lumen' };
 
 function fmtTR(n){ return n.toFixed(2).replace('.', ','); }
-function lensLabel(l){ return `${l.name}${l.note ? ` (${l.note})` : ''}`; }
 
 const state = { mode: 'distanza', family: '' };
 
@@ -345,10 +344,9 @@ function renderLensMatch(tr){
       <div class="label">Ottiche compatibili a magazzino</div>
       ${matches.map((l, i) => `<div class="lens${i === 0 ? ' best' : ''}">
         <div class="info">
-          <span class="name">${i === 0 ? '<span class="badge">✓ CONSIGLIATA</span>' : ''}${lensLabel(l)} · ${l.family}</span>
+          <span class="name">${i === 0 ? '<span class="badge">✓ CONSIGLIATA</span>' : ''}${l.name}</span>
           <div class="range"><i style="left:${(zoomPos(l, tr) * 100).toFixed(1)}%"></i></div>
         </div>
-        <span class="tr">${fmtTR(l.min)}:${fmtTR(l.max)}</span>
       </div>`).join('')}
     </div>`;
   }
@@ -358,7 +356,7 @@ function renderLensMatch(tr){
   return `<div class="lens-missing">
     ⚠ Nessuna ottica a catalogo copre il valore ${fmtTR(tr)}:1${family ? ` per proiettori da ${FAMILY_NAMES[family]}` : ''}.
     La lente non è presente a magazzino: è necessario reperire un'ottica adeguata.
-    ${nearest ? `<div class="hint">Più vicina disponibile: ${lensLabel(nearest.l)} · ${nearest.l.family} (${fmtTR(nearest.l.min)}:${fmtTR(nearest.l.max)})</div>` : ''}
+    ${nearest ? `<div class="hint">Più vicina disponibile: ${nearest.l.name}</div>` : ''}
   </div>`;
 }
 
@@ -409,7 +407,7 @@ tabs.forEach(t => {
 });
 
 document.getElementById('catalogBody').innerHTML = LENSES.map(l =>
-  `<tr><td>${lensLabel(l)}</td><td>${l.family}</td><td class="tr">${fmtTR(l.min)}:${fmtTR(l.max)}</td></tr>`
+  `<tr><td>${l.name}</td></tr>`
 ).join('');
 
 render();
@@ -560,11 +558,10 @@ function downloadPdf(){
           doc.setTextColor(30, 110, 60); doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
           doc.text('CONSIGLIATA', X + 3, y + 0.5);
           doc.setTextColor(20, 24, 29); doc.setFontSize(11);
-          doc.text(`${lensLabel(l)} - ${FAMILY_NAMES[l.family]}`, X + 28, y + 0.5);
-          doc.text(`${fmtTR(l.min)}:${fmtTR(l.max)}`, X + W - 3, y + 0.5, { align: 'right' });
+          doc.text(l.name, X + 28, y + 0.5);
           y += 11;
         } else {
-          row(`${lensLabel(l)} - ${FAMILY_NAMES[l.family]}`, `${fmtTR(l.min)}:${fmtTR(l.max)}`);
+          row(l.name, '');
         }
       });
     } else {
