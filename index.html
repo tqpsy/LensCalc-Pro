@@ -153,6 +153,16 @@
   .catalog tr.best td.tr{color:var(--good);}
   .catalog tr.best td:first-child{box-shadow:inset 3px 0 0 var(--good);}
 
+  .pdf-btn{
+    display:block; width:100%;
+    background:var(--accent); color:#0f1318;
+    border:none; border-radius:2px;
+    padding:14px; margin-top:4px;
+    font-family:inherit; font-size:14px; font-weight:bold;
+    cursor:pointer;
+  }
+  .pdf-btn:active{opacity:0.85;}
+
   footer{margin-top:30px; color:var(--text-dim); font-size:11.5px; line-height:1.6;}
 </style>
 </head>
@@ -219,6 +229,8 @@
       <tbody id="catalogBody"></tbody>
     </table>
   </div>
+
+  <button class="pdf-btn" id="pdfBtn">⤓ Scarica resoconto PDF</button>
 
   <footer>
     Ottica espressa come Rapporto di Proiezione (Throw Ratio), distanza e base in metri. Se l'ottica è uno zoom, calcola i due estremi (min/max).
@@ -451,6 +463,135 @@ document.getElementById('pullBase').addEventListener('click', () => {
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
+</script>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script>
+const m = n => `${n.toFixed(3).replace('.', ',')} m`;
+
+function buildReport(){
+  const a = parseFloat(document.getElementById('in1').value);
+  const b = parseFloat(document.getElementById('in2').value);
+  if(isNaN(a) || isNaN(b) || b === 0) return null;
+
+  const r = { inputs: [], result: null, lenses: null, base: null };
+  if(state.mode === 'distanza'){
+    r.title = 'Calcolo distanza di proiezione';
+    r.inputs = [['Base (larghezza immagine)', m(a)], ['Ottica (throw ratio)', `${fmtTR(b)}:1`]];
+    r.result = ['Distanza di proiezione', m(a * b)];
+    r.base = a;
+  } else if(state.mode === 'base'){
+    r.title = 'Calcolo base schermo';
+    r.inputs = [['Distanza di proiezione', m(a)], ['Ottica (throw ratio)', `${fmtTR(b)}:1`]];
+    r.result = ['Base (larghezza immagine)', m(a / b)];
+    r.base = a / b;
+  } else {
+    const tr = a / b;
+    r.title = 'Calcolo ottica necessaria';
+    r.inputs = [['Distanza di proiezione', m(a)], ['Base (larghezza immagine)', m(b)]];
+    r.result = ['Ottica necessaria', `${tr.toFixed(3).replace('.', ',')}:1`];
+    r.base = b;
+    r.tr = tr;
+    r.lenses = findMatches(tr, state.family);
+  }
+  return r;
+}
+
+function downloadPdf(){
+  const r = buildReport();
+  if(!r){
+    alert('Inserisci i valori del calcolo prima di scaricare il resoconto.');
+    return;
+  }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const X = 20, W = 170;
+  let y = 22;
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('it-IT') + ' ' + now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+
+  doc.setFillColor(20, 24, 29);
+  doc.rect(0, 0, 210, 34, 'F');
+  doc.setTextColor(79, 176, 198);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text('LensCalc Pro', X, 14);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
+  doc.text('Resoconto calcolo ottica', X, 24);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text(dateStr, X + W, 24, { align: 'right' });
+  y = 48;
+
+  const section = t => {
+    doc.setTextColor(110, 120, 132); doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    doc.text(t.toUpperCase(), X, y);
+    doc.setDrawColor(210, 214, 220); doc.line(X, y + 2, X + W, y + 2);
+    y += 9;
+  };
+  const row = (k, v, bold) => {
+    doc.setTextColor(40, 44, 50); doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
+    doc.text(k, X, y);
+    doc.setFont('helvetica', bold ? 'bold' : 'normal');
+    doc.text(v, X + W, y, { align: 'right' });
+    y += 7;
+  };
+
+  section('Proiettore');
+  row('Proiettore in uso', state.family ? `Epson ${FAMILY_NAMES[state.family]}` : 'Non specificato (tutti)');
+  y += 4;
+
+  section(r.title);
+  r.inputs.forEach(([k, v]) => row(k, v));
+  y += 2;
+  doc.setFillColor(232, 245, 249); doc.setDrawColor(79, 176, 198);
+  doc.rect(X, y - 5, W, 12, 'FD');
+  doc.setTextColor(20, 24, 29); doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
+  doc.text(r.result[0], X + 4, y + 2.5);
+  doc.text(r.result[1], X + W - 4, y + 2.5, { align: 'right' });
+  y += 16;
+
+  if(r.lenses){
+    section('Ottiche a magazzino');
+    if(r.lenses.length){
+      r.lenses.forEach((l, i) => {
+        if(i === 0){
+          doc.setFillColor(223, 243, 230); doc.setDrawColor(108, 201, 138);
+          doc.rect(X, y - 5, W, 9, 'FD');
+          doc.setTextColor(30, 110, 60); doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+          doc.text('CONSIGLIATA', X + 3, y + 0.5);
+          doc.setTextColor(20, 24, 29); doc.setFontSize(11);
+          doc.text(`${lensLabel(l)} - ${FAMILY_NAMES[l.family]}`, X + 28, y + 0.5);
+          doc.text(`${fmtTR(l.min)}:${fmtTR(l.max)}`, X + W - 3, y + 0.5, { align: 'right' });
+          y += 11;
+        } else {
+          row(`${lensLabel(l)} - ${FAMILY_NAMES[l.family]}`, `${fmtTR(l.min)}:${fmtTR(l.max)}`);
+        }
+      });
+    } else {
+      doc.setFillColor(252, 240, 230); doc.setDrawColor(214, 138, 76);
+      doc.rect(X, y - 5, W, 20, 'FD');
+      doc.setTextColor(160, 80, 20); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      doc.text('LENTE NON PRESENTE A CATALOGO', X + 4, y + 1);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+      doc.text(`Nessuna ottica a magazzino copre il valore ${fmtTR(r.tr)}:1${state.family ? ` per proiettori da ${FAMILY_NAMES[state.family]}` : ''}.`, X + 4, y + 7);
+      doc.text("È necessario reperire un'ottica adeguata.", X + 4, y + 12);
+      y += 24;
+    }
+    y += 4;
+  }
+
+  section('Altezza immagine');
+  row('Base', m(r.base));
+  row('Altezza formato 16:9', m(r.base * 9 / 16));
+  row('Altezza formato 16:10', m(r.base * 10 / 16));
+
+  doc.setTextColor(140, 148, 158); doc.setFontSize(8);
+  doc.text('Ottica espressa come rapporto di proiezione (throw ratio), distanze in metri.', X, 285);
+
+  const stamp = now.toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
+  doc.save(`resoconto-ottica-${stamp}.pdf`);
+}
+document.getElementById('pdfBtn').addEventListener('click', downloadPdf);
 </script>
 </body>
 </html>
